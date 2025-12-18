@@ -1,39 +1,32 @@
 package com.clause.app.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import java.util.Arrays;
-import java.util.List;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-public class CorsConfig {
+public class CorsConfig implements WebMvcConfigurer {
 
     @Value("${clause.cors.allowed-origins:*}")
     private String allowedOrigins;
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        var corsRegistration = registry.addMapping("/**")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+                .allowedHeaders("*")
+                .exposedHeaders("*")
+                .maxAge(3600L);
         
         if ("*".equals(allowedOrigins)) {
-            configuration.setAllowedOriginPatterns(List.of("*"));
+            corsRegistration.allowedOriginPatterns("*")
+                    .allowCredentials(false);
         } else {
-            configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
+            String[] origins = allowedOrigins.split(",");
+            corsRegistration.allowedOrigins(origins)
+                    .allowCredentials(true);
         }
-        
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
     }
 }
 

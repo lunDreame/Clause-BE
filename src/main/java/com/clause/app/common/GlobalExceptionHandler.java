@@ -8,7 +8,9 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +47,34 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.FILE_TOO_LARGE.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.FILE_TOO_LARGE, ErrorCode.FILE_TOO_LARGE.getDefaultMessage()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFoundException(NoResourceFoundException e) {
+        log.warn("Resource not found: {} {}", e.getHttpMethod(), e.getResourcePath());
+        return ResponseEntity
+                .status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.NOT_FOUND, 
+                    String.format("%s %s 경로를 찾을 수 없어요.", e.getHttpMethod(), e.getResourcePath())));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e) {
+        String parameterName = e.getName();
+        String providedValue = e.getValue() != null ? e.getValue().toString() : "null";
+        String requiredType = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "unknown";
+        
+        String errorMessage;
+        if (requiredType.equals("UUID")) {
+            errorMessage = String.format("파라미터 '%s'에 올바른 UUID 형식이 필요해요. (제공된 값: %s)", parameterName, providedValue);
+        } else {
+            errorMessage = String.format("파라미터 '%s'의 형식이 올바르지 않아요. (필요한 타입: %s, 제공된 값: %s)", parameterName, requiredType, providedValue);
+        }
+        
+        log.warn("Type mismatch for parameter '{}': {} -> {}", parameterName, providedValue, requiredType);
+        return ResponseEntity
+                .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, errorMessage));
     }
 
     @ExceptionHandler(Exception.class)
