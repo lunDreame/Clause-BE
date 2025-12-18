@@ -1,0 +1,24 @@
+resilience4j:
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - java.lang.Exception
+    instances:
+      llmRetry:
+        baseConfig: default
+        maxAttempts: 3
+
+  circuitbreaker:
+    configs:
+      default:
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+    instances:
+      llmCircuitBreaker:
+        baseConfig: default
+
