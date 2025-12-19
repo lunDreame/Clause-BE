@@ -26,7 +26,6 @@ public class SchemaValidator {
     public ValidationResult validate(JsonNode root) {
         List<String> errors = new ArrayList<>();
 
-        // overall_summary 검증
         if (!root.has("overall_summary")) {
             errors.add("Missing 'overall_summary'");
         } else {
@@ -43,7 +42,6 @@ public class SchemaValidator {
             }
         }
 
-        // items 검증
         if (!root.has("items") || !root.get("items").isArray()) {
             errors.add("Missing or invalid 'items' array");
         } else {
@@ -56,7 +54,6 @@ public class SchemaValidator {
                 if (!item.has("soft_suggestion")) errors.add("Item missing soft_suggestion");
                 if (!item.has("triggers")) errors.add("Item missing triggers");
 
-                // label 값 검증
                 if (item.has("label")) {
                     String label = item.get("label").asText();
                     if (!label.equals("WARNING") && !label.equals("CHECK") && !label.equals("OK")) {
@@ -64,7 +61,6 @@ public class SchemaValidator {
                     }
                 }
 
-                // 길이 제한 검증
                 if (item.has("risk_reason")) {
                     String reason = item.get("risk_reason").asText();
                     if (reason.length() > MAX_RISK_REASON_LENGTH) {
@@ -80,7 +76,6 @@ public class SchemaValidator {
             });
         }
 
-        // negotiation_suggestions 검증
         if (!root.has("negotiation_suggestions") || !root.get("negotiation_suggestions").isArray()) {
             errors.add("Missing or invalid 'negotiation_suggestions'");
         } else {
@@ -91,7 +86,6 @@ public class SchemaValidator {
             });
         }
 
-        // disclaimer 검증
         if (!root.has("disclaimer")) {
             errors.add("Missing 'disclaimer'");
         }
@@ -100,27 +94,100 @@ public class SchemaValidator {
     }
 
     public JsonNode sanitize(JsonNode root) {
-        // 길이 제한 초과 시 자르기
-        if (root.has("items") && root.get("items").isArray()) {
-            root.get("items").forEach(item -> {
-                if (item.has("risk_reason")) {
-                    String reason = item.get("risk_reason").asText();
-                    if (reason.length() > MAX_RISK_REASON_LENGTH) {
-                        ((com.fasterxml.jackson.databind.node.ObjectNode) item)
-                                .put("risk_reason", reason.substring(0, MAX_RISK_REASON_LENGTH));
-                    }
-                }
-                if (item.has("title")) {
-                    String title = item.get("title").asText();
-                    if (title.length() > MAX_TITLE_LENGTH) {
-                        ((com.fasterxml.jackson.databind.node.ObjectNode) item)
-                                .put("title", title.substring(0, MAX_TITLE_LENGTH));
-                    }
-                }
-            });
+        com.fasterxml.jackson.databind.node.ObjectNode rootNode;
+        if (root.isObject()) {
+            rootNode = (com.fasterxml.jackson.databind.node.ObjectNode) root;
+        } else {
+            rootNode = objectMapper.createObjectNode();
+            root.fields().forEachRemaining(entry -> rootNode.set(entry.getKey(), entry.getValue()));
         }
 
-        return root;
+        if (!rootNode.has("overall_summary")) {
+            com.fasterxml.jackson.databind.node.ObjectNode summary = 
+                    objectMapper.createObjectNode();
+            summary.put("warning_count", 0);
+            summary.put("check_count", 0);
+            summary.put("ok_count", 0);
+            summary.set("key_points", objectMapper.createArrayNode());
+            rootNode.set("overall_summary", summary);
+        } else {
+            JsonNode summaryNode = rootNode.get("overall_summary");
+            com.fasterxml.jackson.databind.node.ObjectNode summary;
+            if (summaryNode.isObject()) {
+                summary = (com.fasterxml.jackson.databind.node.ObjectNode) summaryNode;
+            } else {
+                summary = objectMapper.createObjectNode();
+                rootNode.set("overall_summary", summary);
+            }
+            if (!summary.has("warning_count")) summary.put("warning_count", 0);
+            if (!summary.has("check_count")) summary.put("check_count", 0);
+            if (!summary.has("ok_count")) summary.put("ok_count", 0);
+            if (!summary.has("key_points")) summary.set("key_points", objectMapper.createArrayNode());
+        }
+
+        if (!rootNode.has("items") || !rootNode.get("items").isArray()) {
+            rootNode.set("items", objectMapper.createArrayNode());
+        } else {
+            com.fasterxml.jackson.databind.node.ArrayNode itemsArray = 
+                    (com.fasterxml.jackson.databind.node.ArrayNode) rootNode.get("items");
+            for (int i = 0; i < itemsArray.size(); i++) {
+                JsonNode item = itemsArray.get(i);
+                com.fasterxml.jackson.databind.node.ObjectNode itemNode;
+                if (item.isObject()) {
+                    itemNode = (com.fasterxml.jackson.databind.node.ObjectNode) item;
+                } else {
+                    itemNode = objectMapper.createObjectNode();
+                    itemsArray.set(i, itemNode);
+                }
+                
+                if (!item.has("clause_id")) itemNode.put("clause_id", "");
+                if (!item.has("title")) itemNode.put("title", "");
+                if (!item.has("label")) itemNode.put("label", "OK");
+                if (!item.has("risk_reason")) itemNode.put("risk_reason", "");
+                if (!item.has("what_to_confirm")) itemNode.set("what_to_confirm", objectMapper.createArrayNode());
+                if (!item.has("soft_suggestion")) itemNode.set("soft_suggestion", objectMapper.createArrayNode());
+                if (!item.has("triggers")) itemNode.set("triggers", objectMapper.createArrayNode());
+                
+                if (item.has("label")) {
+                    String label = item.get("label").asText();
+                    if (!label.equals("WARNING") && !label.equals("CHECK") && !label.equals("OK")) {
+                        itemNode.put("label", "OK");
+                    }
+                }
+                
+                if (itemNode.has("risk_reason")) {
+                    String reason = itemNode.get("risk_reason").asText();
+                    if (reason.length() > MAX_RISK_REASON_LENGTH) {
+                        itemNode.put("risk_reason", reason.substring(0, MAX_RISK_REASON_LENGTH));
+                    }
+                }
+                if (itemNode.has("title")) {
+                    String title = itemNode.get("title").asText();
+                    if (title.length() > MAX_TITLE_LENGTH) {
+                        itemNode.put("title", title.substring(0, MAX_TITLE_LENGTH));
+                    }
+                }
+            }
+        }
+
+        if (!rootNode.has("negotiation_suggestions") || !rootNode.get("negotiation_suggestions").isArray()) {
+            rootNode.set("negotiation_suggestions", objectMapper.createArrayNode());
+        } else {
+            com.fasterxml.jackson.databind.node.ArrayNode suggestions = 
+                    (com.fasterxml.jackson.databind.node.ArrayNode) rootNode.get("negotiation_suggestions");
+            for (int i = 0; i < suggestions.size(); i++) {
+                String suggestion = suggestions.get(i).asText();
+                if (suggestion.length() > MAX_SUGGESTION_LENGTH) {
+                    suggestions.set(i, objectMapper.valueToTree(suggestion.substring(0, MAX_SUGGESTION_LENGTH)));
+                }
+            }
+        }
+
+        if (!rootNode.has("disclaimer")) {
+            rootNode.put("disclaimer", "Clause는 법률 자문이 아니며, 정보 제공 목적입니다. 중요한 계약은 전문가 상담을 권장드립니다.");
+        }
+
+        return rootNode;
     }
 
     public record ValidationResult(boolean valid, List<String> errors) {}

@@ -31,7 +31,6 @@ public class ForbiddenPhraseGuard {
 
         boolean foundForbidden = false;
 
-        // overall_summary의 key_points 검사
         if (result.has("overall_summary")) {
             ObjectNode summary = (ObjectNode) result.get("overall_summary");
             if (summary.has("key_points") && summary.get("key_points").isArray()) {
@@ -46,14 +45,12 @@ public class ForbiddenPhraseGuard {
             }
         }
 
-        // items 검사
         if (result.has("items") && result.get("items").isArray()) {
             ArrayNode items = (ArrayNode) result.get("items");
             for (JsonNode item : items) {
                 ObjectNode itemNode = (ObjectNode) item;
                 boolean itemModified = false;
 
-                // title 검사
                 if (itemNode.has("title")) {
                     String title = itemNode.get("title").asText();
                     if (containsForbiddenPhrase(title)) {
@@ -62,7 +59,6 @@ public class ForbiddenPhraseGuard {
                     }
                 }
 
-                // risk_reason 검사
                 if (itemNode.has("risk_reason")) {
                     String reason = itemNode.get("risk_reason").asText();
                     if (containsForbiddenPhrase(reason)) {
@@ -71,7 +67,6 @@ public class ForbiddenPhraseGuard {
                     }
                 }
 
-                // soft_suggestion 검사
                 if (itemNode.has("soft_suggestion") && itemNode.get("soft_suggestion").isArray()) {
                     ArrayNode suggestions = (ArrayNode) itemNode.get("soft_suggestion");
                     for (int i = 0; i < suggestions.size(); i++) {
@@ -83,12 +78,10 @@ public class ForbiddenPhraseGuard {
                     }
                 }
 
-                // label 다운그레이드 (WARNING -> CHECK)
                 if (itemModified && itemNode.has("label") && itemNode.get("label").asText().equals("WARNING")) {
                     itemNode.put("label", "CHECK");
                 }
 
-                // triggers에 FORBIDDEN_PHRASE 추가
                 if (itemModified) {
                     if (!itemNode.has("triggers") || !itemNode.get("triggers").isArray()) {
                         itemNode.set("triggers", objectMapper.createArrayNode());
@@ -109,7 +102,6 @@ public class ForbiddenPhraseGuard {
             }
         }
 
-        // negotiation_suggestions 검사
         if (result.has("negotiation_suggestions") && result.get("negotiation_suggestions").isArray()) {
             ArrayNode suggestions = (ArrayNode) result.get("negotiation_suggestions");
             for (int i = 0; i < suggestions.size(); i++) {
@@ -119,10 +111,6 @@ public class ForbiddenPhraseGuard {
                     foundForbidden = true;
                 }
             }
-        }
-
-        if (foundForbidden) {
-            log.info("Forbidden phrases detected and sanitized");
         }
 
         return result;

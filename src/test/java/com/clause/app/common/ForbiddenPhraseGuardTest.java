@@ -1,12 +1,12 @@
 package com.clause.app.common;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 class ForbiddenPhraseGuardTest {
@@ -44,15 +44,12 @@ class ForbiddenPhraseGuardTest {
         JsonNode root = objectMapper.readTree(json);
         JsonNode guarded = guard.guard(root);
 
-        // 금지어가 치환되었는지 확인
         String keyPoint = guarded.get("overall_summary").get("key_points").get(0).asText();
         assertThat(keyPoint).doesNotContain("불법");
 
-        // label이 다운그레이드되었는지 확인
         String label = guarded.get("items").get(0).get("label").asText();
-        assertThat(label).isEqualTo("CHECK"); // WARNING -> CHECK
+        assertThat(label).isEqualTo("CHECK");
 
-        // triggers에 FORBIDDEN_PHRASE가 추가되었는지 확인
         JsonNode triggers = guarded.get("items").get(0).get("triggers");
         boolean hasForbidden = false;
         for (JsonNode trigger : triggers) {

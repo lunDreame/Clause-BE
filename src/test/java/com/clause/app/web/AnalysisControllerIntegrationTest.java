@@ -1,7 +1,6 @@
 package com.clause.app.web;
 
 import com.clause.app.domain.analysis.dto.AnalysisRequest;
-import com.clause.app.domain.analysis.dto.AnalysisResponse;
 import com.clause.app.domain.document.entity.Document;
 import com.clause.app.domain.document.repo.DocumentRepository;
 import com.clause.app.domain.llm.LlmClient;

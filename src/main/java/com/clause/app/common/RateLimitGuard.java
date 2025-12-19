@@ -25,7 +25,6 @@ public class RateLimitGuard {
         Instant now = Instant.now();
         RateLimitRecord record = records.computeIfAbsent(identifier, k -> new RateLimitRecord());
 
-        // 1분 이상 지난 요청 제거
         record.cleanup(now.minusSeconds(60));
 
         if (record.count >= perMinute) {

@@ -37,13 +37,11 @@ class RuleEngineTest {
         assertThat(result.getCandidates()).isNotEmpty();
         assertThat(result.getTotalTriggers()).isGreaterThan(0);
 
-        // IP_ASSIGNMENT 트리거 확인
         boolean hasIpTrigger = result.getCandidates().stream()
                 .flatMap(c -> c.getRuleTriggers().stream())
                 .anyMatch(t -> t.getCategory().name().equals("IP_ASSIGNMENT"));
         assertThat(hasIpTrigger).isTrue();
 
-        // DAMAGES_UNLIMITED 트리거 확인
         boolean hasDamagesTrigger = result.getCandidates().stream()
                 .flatMap(c -> c.getRuleTriggers().stream())
                 .anyMatch(t -> t.getCategory().name().equals("DAMAGES_UNLIMITED"));
@@ -66,7 +64,6 @@ class RuleEngineTest {
 
         assertThat(result.getCandidates()).isNotEmpty();
 
-        // DEPOSIT_DEDUCTION 트리거 확인
         boolean hasDepositTrigger = result.getCandidates().stream()
                 .flatMap(c -> c.getRuleTriggers().stream())
                 .anyMatch(t -> t.getCategory().name().equals("DEPOSIT_DEDUCTION"));
@@ -89,7 +86,6 @@ class RuleEngineTest {
 
         assertThat(result.getCandidates()).isNotEmpty();
 
-        // PAYMENT 트리거 확인
         boolean hasPaymentTrigger = result.getCandidates().stream()
                 .flatMap(c -> c.getRuleTriggers().stream())
                 .anyMatch(t -> t.getCategory().name().equals("PAYMENT"));

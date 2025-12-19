@@ -50,11 +50,9 @@ public class AnalysisService {
 
     @Transactional
     public AnalysisResult analyze(AnalysisRequest request) {
-        // 1) Document 조회
         Document document = documentRepository.findById(request.getDocumentId())
                 .orElseThrow(() -> new ClauseException(ErrorCode.DOCUMENT_NOT_FOUND));
 
-        // 2) 텍스트 추출 (없으면 시도)
         if (document.getExtractedText() == null) {
             document = documentService.extractText(document.getId());
         }
@@ -64,24 +62,16 @@ public class AnalysisService {
             throw new ClauseException(ErrorCode.EXTRACTION_FAILED, "추출된 텍스트가 없습니다.");
         }
 
-        // 3) 정규화
         String normalizedText = textNormalizer.normalize(extractedText);
-
-        // 4) PII 마스킹
         String maskedText = maskingUtil.maskForLlm(normalizedText);
-
-        // 5) 조항 세그먼트 생성
         List<ClauseCandidate> segments = clauseSegmenter.segment(maskedText);
 
-        // 6) 룰 엔진 실행
         ContractType contractType = ContractType.valueOf(request.getContractType());
         RuleRunResult ruleResult = ruleEngine.runRules(maskedText, contractType, segments);
 
-        // 7) 후보 조항 선정
         List<ClauseCandidate> topCandidates = ruleEngine.selectTopCandidates(
                 ruleResult.getCandidates(), 10, contractType);
 
-        // 8) LLM 호출
         UserProfile userProfile = UserProfile.valueOf(request.getUserProfile());
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String developerPrompt = promptBuilder.buildDeveloperPrompt(
@@ -109,29 +99,54 @@ public class AnalysisService {
         try {
             LlmResponse llmResponse = llmClient.call(llmRequest);
             String rawJson = llmResponse.getContent();
+            if (rawJson == null || rawJson.isBlank()) {
+                throw new ClauseException(ErrorCode.JSON_REPAIR_FAILED, "LLM 응답이 비어있습니다.");
+            }
 
-            // 9) JSON 복구
-            String repairedJson = jsonRepairUtil.extractAndRepair(rawJson);
-            JsonNode root = objectMapper.readTree(repairedJson);
+            String repairedJson;
+            try {
+                repairedJson = jsonRepairUtil.extractAndRepair(rawJson);
+            } catch (Exception e) {
+                log.error("JSON 복구 실패. 원본 응답: {}", rawJson.substring(0, Math.min(500, rawJson.length())), e);
+                throw new ClauseException(ErrorCode.JSON_REPAIR_FAILED, "JSON 복구 실패: " + e.getMessage());
+            }
+            
+            JsonNode rootNode = objectMapper.readTree(repairedJson);
+            com.fasterxml.jackson.databind.node.ObjectNode root = 
+                    rootNode.isObject() ? (com.fasterxml.jackson.databind.node.ObjectNode) rootNode 
+                                       : objectMapper.createObjectNode();
 
-            // 10) 스키마 검증
             SchemaValidator.ValidationResult validation = schemaValidator.validate(root);
             if (!validation.valid()) {
                 log.warn("Schema validation failed: {}", validation.errors());
-                root = schemaValidator.sanitize(root);
+                root = (com.fasterxml.jackson.databind.node.ObjectNode) schemaValidator.sanitize(root);
             }
 
-            // 11) 금지어 가드
-            root = forbiddenPhraseGuard.guard(root);
+            JsonNode guardedRoot = forbiddenPhraseGuard.guard(root);
+            if (!guardedRoot.isObject()) {
+                guardedRoot = root;
+            } else {
+                root = (com.fasterxml.jackson.databind.node.ObjectNode) guardedRoot;
+            }
 
-            // 12) 후처리 (서버에서 재계산)
             root = postProcess(root, topCandidates);
-
-            // 13) 저장
-            analysisResult.setOverallSummaryJson(objectMapper.writeValueAsString(root.get("overall_summary")));
-            analysisResult.setItemsJson(objectMapper.writeValueAsString(root.get("items")));
-            analysisResult.setNegotiationSuggestionsJson(objectMapper.writeValueAsString(root.get("negotiation_suggestions")));
-            analysisResult.setDisclaimer(root.get("disclaimer").asText());
+            JsonNode overallSummary = root.get("overall_summary");
+            JsonNode items = root.get("items");
+            JsonNode negotiationSuggestions = root.get("negotiation_suggestions");
+            JsonNode disclaimer = root.get("disclaimer");
+            
+            if (overallSummary != null) {
+                analysisResult.setOverallSummaryJson(objectMapper.writeValueAsString(overallSummary));
+            }
+            if (items != null) {
+                analysisResult.setItemsJson(objectMapper.writeValueAsString(items));
+            }
+            if (negotiationSuggestions != null) {
+                analysisResult.setNegotiationSuggestionsJson(objectMapper.writeValueAsString(negotiationSuggestions));
+            }
+            if (disclaimer != null && !disclaimer.isNull()) {
+                analysisResult.setDisclaimer(disclaimer.asText());
+            }
             analysisResult.setRuleTriggersJson(objectMapper.writeValueAsString(
                     topCandidates.stream()
                             .flatMap(c -> c.getRuleTriggers().stream())
@@ -164,8 +179,14 @@ public class AnalysisService {
                 documentId, org.springframework.data.domain.PageRequest.of(0, 20));
     }
 
-    private JsonNode postProcess(JsonNode root, List<ClauseCandidate> candidates) {
-        // overall_summary count 재계산
+    @Transactional(readOnly = true)
+    public List<AnalysisResult> getAnalysisHistory(int page, int size) {
+        return analysisRepository.findAllByOrderByCreatedAtDesc(
+                org.springframework.data.domain.PageRequest.of(page, size));
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode postProcess(
+            com.fasterxml.jackson.databind.node.ObjectNode root, List<ClauseCandidate> candidates) {
         JsonNode items = root.get("items");
         if (items != null && items.isArray()) {
             int warningCount = 0;
@@ -173,23 +194,29 @@ public class AnalysisService {
             int okCount = 0;
 
             for (JsonNode item : items) {
-                String label = item.get("label").asText();
-                if ("WARNING".equals(label)) warningCount++;
-                else if ("CHECK".equals(label)) checkCount++;
-                else if ("OK".equals(label)) okCount++;
+                JsonNode labelNode = item.get("label");
+                if (labelNode != null && !labelNode.isNull()) {
+                    String label = labelNode.asText();
+                    if ("WARNING".equals(label)) warningCount++;
+                    else if ("CHECK".equals(label)) checkCount++;
+                    else if ("OK".equals(label)) okCount++;
+                }
             }
 
-            com.fasterxml.jackson.databind.node.ObjectNode summary =
-                    (com.fasterxml.jackson.databind.node.ObjectNode) root.get("overall_summary");
+            JsonNode summaryNode = root.get("overall_summary");
+            com.fasterxml.jackson.databind.node.ObjectNode summary;
+            if (summaryNode != null && summaryNode.isObject()) {
+                summary = (com.fasterxml.jackson.databind.node.ObjectNode) summaryNode;
+            } else {
+                summary = objectMapper.createObjectNode();
+                root.set("overall_summary", summary);
+            }
             summary.put("warning_count", warningCount);
             summary.put("check_count", checkCount);
             summary.put("ok_count", okCount);
         }
 
-        // disclaimer 고정
-        com.fasterxml.jackson.databind.node.ObjectNode rootNode =
-                (com.fasterxml.jackson.databind.node.ObjectNode) root;
-        rootNode.put("disclaimer", "Clause는 법률 자문이 아니며, 정보 제공 목적입니다. 중요한 계약은 전문가 상담을 권장드립니다.");
+        root.put("disclaimer", "Clause는 법률 자문이 아니며, 정보 제공 목적입니다. 중요한 계약은 전문가 상담을 권장드립니다.");
 
         return root;
     }

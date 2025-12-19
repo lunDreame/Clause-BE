@@ -13,7 +13,6 @@ import java.util.regex.Pattern;
 @Component
 public class ClauseSegmenter {
 
-    // 조항 패턴: 제1조, 제일조, 제이십조 등
     private static final Pattern CLAUSE_PATTERN = Pattern.compile(
             "^\\s*제\\s*(\\d+|[일이삼사오육칠팔구십백천]+)\\s*조\\s*(.*)$",
             Pattern.MULTILINE | Pattern.CASE_INSENSITIVE
@@ -35,11 +34,9 @@ public class ClauseSegmenter {
         }
 
         if (matches.isEmpty()) {
-            // 조항 패턴이 없으면 문장/단락 기준으로 분리
             return segmentByParagraph(text);
         }
 
-        // 조항별로 세그먼트 생성
         for (int i = 0; i < matches.size(); i++) {
             MatchInfo current = matches.get(i);
             int startIndex = current.start;
@@ -48,7 +45,6 @@ public class ClauseSegmenter {
             String segmentText = text.substring(startIndex, endIndex).trim();
             String title = extractTitle(segmentText);
 
-            // 너무 긴 세그먼트는 분할
             if (segmentText.length() > MAX_SEGMENT_LENGTH) {
                 List<ClauseCandidate> subSegments = splitLongSegment(segmentText, title, startIndex);
                 segments.addAll(subSegments);
@@ -63,7 +59,6 @@ public class ClauseSegmenter {
             }
         }
 
-        log.info("Segmented text into {} clauses", segments.size());
         return segments;
     }
 
@@ -73,12 +68,12 @@ public class ClauseSegmenter {
 
         for (int i = 0; i < paragraphs.length; i++) {
             String para = paragraphs[i].trim();
-            if (para.length() > 50) { // 최소 길이 필터
+            if (para.length() > 50) {
                 segments.add(ClauseCandidate.builder()
                         .id("C-" + String.format("%03d", segments.size() + 1))
                         .title("조항 " + (segments.size() + 1))
                         .text(para)
-                        .startIndex(0) // 정확한 인덱스는 복잡하므로 간소화
+                        .startIndex(0)
                         .endIndex(para.length())
                         .build());
             }
@@ -91,7 +86,6 @@ public class ClauseSegmenter {
         Matcher matcher = CLAUSE_PATTERN.matcher(segmentText);
         if (matcher.find()) {
             String fullMatch = matcher.group(0);
-            // 제목 부분 추출 (첫 줄)
             String[] lines = segmentText.split("\n");
             if (lines.length > 0) {
                 return lines[0].trim();

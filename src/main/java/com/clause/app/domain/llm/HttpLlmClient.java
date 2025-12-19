@@ -15,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Mono;
 import reactor.util.retry.RetryBackoffSpec;
 
 import java.time.Duration;
@@ -23,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -38,20 +38,24 @@ public class HttpLlmClient implements LlmClient {
     public HttpLlmClient(
             WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
-            @Value("${clause.llm.base-url}") String baseUrl,
+            @Value("${clause.llm.base-url:}") String baseUrl,
             @Value("${clause.llm.api-key:}") String apiKey,
             @Value("${clause.llm.model:gpt-4o-mini}") String defaultModel,
-            @Value("${clause.llm.timeout-ms:10000}") int timeoutMs) {
+            @Value("${clause.llm.timeout-ms:60000}") int timeoutMs) {
         this.objectMapper = objectMapper;
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.defaultModel = defaultModel;
         this.timeoutMs = timeoutMs;
 
+        if (baseUrl == null || baseUrl.isBlank()) {
+            log.warn("LLM base-url is not configured. LLM calls will fail.");
+        }
+
         this.webClient = webClientBuilder
-                .baseUrl(baseUrl)
+                .baseUrl(baseUrl != null && !baseUrl.isBlank() ? baseUrl : "http://localhost")
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + (apiKey != null ? apiKey : ""))
                 .build();
     }
 
@@ -68,7 +72,17 @@ public class HttpLlmClient implements LlmClient {
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .timeout(Duration.ofMillis(timeoutMs))
-                    .retryWhen(RetryBackoffSpec.fixedDelay(2, Duration.ofMillis(500)))
+                    .retryWhen(RetryBackoffSpec.fixedDelay(2, Duration.ofMillis(500))
+                            .filter(throwable -> {
+                                Throwable cause = throwable;
+                                while (cause != null) {
+                                    if (cause instanceof TimeoutException) {
+                                        return false;
+                                    }
+                                    cause = cause.getCause();
+                                }
+                                return true;
+                            }))
                     .map(this::parseResponse)
                     .block();
         } catch (WebClientResponseException e) {
@@ -76,6 +90,14 @@ public class HttpLlmClient implements LlmClient {
             throw new ClauseException(ErrorCode.LLM_UPSTREAM_ERROR, "LLM API 호출 실패: " + e.getMessage());
         } catch (Exception e) {
             log.error("LLM call failed", e);
+            Throwable cause = e;
+            while (cause != null) {
+                if (cause instanceof TimeoutException) {
+                    throw new ClauseException(ErrorCode.LLM_UPSTREAM_ERROR, 
+                            String.format("LLM API 응답 시간 초과 (%d초). 잠시 후 다시 시도해 주세요.", timeoutMs / 1000));
+                }
+                cause = cause.getCause();
+            }
             throw new ClauseException(ErrorCode.LLM_UPSTREAM_ERROR, e);
         }
     }
@@ -130,8 +152,12 @@ public class HttpLlmClient implements LlmClient {
     }
 
     public LlmResponse fallback(LlmRequest request, Exception e) {
-        log.error("LLM fallback triggered", e);
-        throw new ClauseException(ErrorCode.LLM_UPSTREAM_ERROR, "LLM 서비스가 일시적으로 사용할 수 없습니다.");
+        log.error("LLM fallback triggered. Exception type: {}", e.getClass().getSimpleName(), e);
+        String message = "분석 엔진 응답이 불안정해요. 잠시 후 다시 시도해 주세요.";
+        if (e instanceof TimeoutException) {
+            message = String.format("분석 엔진 응답 시간 초과 (%d초). 잠시 후 다시 시도해 주세요.", timeoutMs / 1000);
+        }
+        throw new ClauseException(ErrorCode.LLM_UPSTREAM_ERROR, message);
     }
 }
 

@@ -14,7 +14,7 @@ public class Resilience4jConfig {
     @Value("${clause.llm.max-retry:2}")
     private int maxRetry;
 
-    @Value("${clause.llm.timeout-ms:10000}")
+    @Value("${clause.llm.timeout-ms:60000}")
     private int timeoutMs;
 
     @Bean

@@ -29,23 +29,19 @@ public class DocumentService {
 
     @Transactional
     public Document upload(MultipartFile file) {
-        // 파일 크기 검증
         if (file.getSize() > 10 * 1024 * 1024) {
             throw new ClauseException(ErrorCode.FILE_TOO_LARGE);
         }
 
-        // Content-Type 검증
         String contentType = file.getContentType();
         if (contentType == null || (!contentType.equals("application/pdf") && !contentType.startsWith("image/"))) {
             throw new ClauseException(ErrorCode.UNSUPPORTED_FILE_TYPE);
         }
 
         try {
-            // 파일 저장
             Path storedPath = storageService.store(file);
             String storagePath = storedPath.getFileName().toString();
 
-            // Document 엔티티 생성
             Document document = Document.builder()
                     .originalFileName(file.getOriginalFilename())
                     .contentType(contentType)
@@ -55,7 +51,6 @@ public class DocumentService {
 
             document = documentRepository.save(document);
 
-            // PDF인 경우 자동으로 텍스트 추출 시도
             if ("application/pdf".equals(contentType)) {
                 try {
                     String extractedText = null;
@@ -74,11 +69,9 @@ public class DocumentService {
                     }
                 } catch (Exception e) {
                     log.warn("Failed to auto-extract text during upload", e);
-                    // 추출 실패해도 업로드는 성공으로 처리
                 }
             }
 
-            log.info("Document uploaded: {}", document.getId());
             return document;
         } catch (ClauseException e) {
             throw e;
@@ -94,16 +87,14 @@ public class DocumentService {
                 .orElseThrow(() -> new ClauseException(ErrorCode.DOCUMENT_NOT_FOUND));
 
         if (document.getExtractedText() != null) {
-            return document; // 이미 추출됨
+            return document;
         }
 
         try {
             String extractedText = null;
 
-            // 저장된 파일 로드
             org.springframework.core.io.Resource resource = storageService.loadAsResource(document.getStoragePath());
 
-            // PDF 텍스트 추출
             if ("application/pdf".equals(document.getContentType())) {
                 for (TextExtractionService service : extractionServices) {
                     if (service.supports(document.getContentType())) {
@@ -115,7 +106,6 @@ public class DocumentService {
                 }
             }
 
-            // 이미지 OCR 시도
             if (extractedText == null && document.getContentType() != null && document.getContentType().startsWith("image/")) {
                 for (OcrService ocrService : ocrServices) {
                     if (ocrService.supports(document.getContentType())) {
@@ -128,7 +118,6 @@ public class DocumentService {
                 throw new ClauseException(ErrorCode.EXTRACTION_FAILED, "지원하지 않는 파일 형식");
             }
 
-            // 정규화 및 SHA256 계산
             String normalized = textNormalizer.normalize(extractedText);
             String sha256 = calculateSha256(normalized);
 
@@ -136,7 +125,6 @@ public class DocumentService {
             document.setTextSha256(sha256);
             document = documentRepository.save(document);
 
-            log.info("Text extracted for document: {}", documentId);
             return document;
         } catch (ClauseException e) {
             throw e;

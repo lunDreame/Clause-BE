@@ -22,7 +22,6 @@ class RuleCatalogLoaderTest {
     void testTotalRegexCount() {
         int totalRegexCount = loader.getTotalRegexCount();
         assertThat(totalRegexCount).isGreaterThanOrEqualTo(260);
-        System.out.println("Total regex count: " + totalRegexCount);
     }
 
     @Test
@@ -37,12 +36,10 @@ class RuleCatalogLoaderTest {
 
     @Test
     void testBoostValues() {
-        // FREELANCE에 대한 boost가 있는 룰 찾기
         boolean hasFreelanceBoost = loader.getRules().stream()
                 .anyMatch(r -> r.getBoost() != null && r.getBoost().containsKey("FREELANCE"));
         assertThat(hasFreelanceBoost).isTrue();
 
-        // LEASE에 대한 boost가 있는 룰 찾기
         boolean hasLeaseBoost = loader.getRules().stream()
                 .anyMatch(r -> r.getBoost() != null && r.getBoost().containsKey("LEASE"));
         assertThat(hasLeaseBoost).isTrue();

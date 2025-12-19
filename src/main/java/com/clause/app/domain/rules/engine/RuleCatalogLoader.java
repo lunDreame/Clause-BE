@@ -76,7 +76,6 @@ public class RuleCatalogLoader {
                 .baseWeight(((Number) map.get("baseWeight")).intValue())
                 .description((String) map.get("description"));
 
-        // Boost map
         @SuppressWarnings("unchecked")
         Map<String, Object> boostMap = (Map<String, Object>) map.get("boost");
         if (boostMap != null) {
@@ -85,7 +84,6 @@ public class RuleCatalogLoader {
             builder.boost(boost);
         }
 
-        // Regex list
         @SuppressWarnings("unchecked")
         List<String> regexList = (List<String>) map.get("regex");
         builder.regex(regexList != null ? regexList : Collections.emptyList());

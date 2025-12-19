@@ -66,13 +66,27 @@ public class AnalysisController {
         return ApiResponse.success(responses);
     }
 
+    @GetMapping("/history")
+    public ApiResponse<List<AnalysisResponse>> getAnalysisHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        rateLimitGuard.check(getClientIdentifier(request));
+
+        List<AnalysisResult> results = analysisService.getAnalysisHistory(page, size);
+        List<AnalysisResponse> responses = results.stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+
+        return ApiResponse.success(responses);
+    }
+
     private AnalysisResponse convertToResponse(AnalysisResult result) {
         try {
             AnalysisResponse.AnalysisResponseBuilder builder = AnalysisResponse.builder()
                     .analysisId(result.getId())
                     .disclaimer(result.getDisclaimer());
 
-            // overall_summary 파싱
             if (result.getOverallSummaryJson() != null) {
                 JsonNode summaryNode = objectMapper.readTree(result.getOverallSummaryJson());
                 AnalysisResponse.OverallSummary summary = AnalysisResponse.OverallSummary.builder()
@@ -85,14 +99,12 @@ public class AnalysisController {
                 builder.overallSummary(summary);
             }
 
-            // items 파싱
             if (result.getItemsJson() != null) {
                 JsonNode itemsNode = objectMapper.readTree(result.getItemsJson());
                 List<AnalysisResponse.AnalysisItem> items = objectMapper.convertValue(itemsNode, List.class);
                 builder.items(items);
             }
 
-            // negotiation_suggestions 파싱
             if (result.getNegotiationSuggestionsJson() != null) {
                 JsonNode suggestionsNode = objectMapper.readTree(result.getNegotiationSuggestionsJson());
                 List<String> suggestions = objectMapper.convertValue(suggestionsNode, List.class);
