@@ -18,7 +18,7 @@ public class AnalysisRequest {
     private UUID documentId;
 
     @NotBlank(message = "contractType은 필수입니다.")
-    private String contractType; // FREELANCE, EMPLOYMENT, PART_TIME, LEASE, NDA, OTHER
+    private String contractType; // FREELANCER, EMPLOYMENT, PART_TIME, LEASE, NDA, OTHER
 
     @NotBlank(message = "userProfile은 필수입니다.")
     private String userProfile; // STUDENT, ENTRY_LEVEL, FREELANCER, INDIVIDUAL_BUSINESS, GENERAL_CONSUMER

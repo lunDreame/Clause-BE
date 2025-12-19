@@ -1,7 +1,7 @@
 package com.clause.app.domain.rules.enums;
 
 public enum ContractType {
-    FREELANCE,
+    FREELANCER,
     EMPLOYMENT,
     PART_TIME,
     LEASE,

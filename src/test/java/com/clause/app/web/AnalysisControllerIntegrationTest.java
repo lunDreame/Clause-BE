@@ -88,7 +88,7 @@ class AnalysisControllerIntegrationTest {
 
         AnalysisRequest request = AnalysisRequest.builder()
                 .documentId(documentId)
-                .contractType("FREELANCE")
+                .contractType("FREELANCER")
                 .userProfile("FREELANCER")
                 .language("ko-KR")
                 .build();
@@ -134,7 +134,7 @@ class AnalysisControllerIntegrationTest {
 
         AnalysisRequest request = AnalysisRequest.builder()
                 .documentId(documentId)
-                .contractType("FREELANCE")
+                .contractType("FREELANCER")
                 .userProfile("FREELANCER")
                 .language("ko-KR")
                 .build();

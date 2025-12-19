@@ -37,7 +37,7 @@ class RuleCatalogLoaderTest {
     @Test
     void testBoostValues() {
         boolean hasFreelanceBoost = loader.getRules().stream()
-                .anyMatch(r -> r.getBoost() != null && r.getBoost().containsKey("FREELANCE"));
+                .anyMatch(r -> r.getBoost() != null && r.getBoost().containsKey("FREELANCER"));
         assertThat(hasFreelanceBoost).isTrue();
 
         boolean hasLeaseBoost = loader.getRules().stream()

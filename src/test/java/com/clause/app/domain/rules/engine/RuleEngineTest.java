@@ -32,7 +32,7 @@ class RuleEngineTest {
                 """;
 
         List<ClauseCandidate> segments = segmenter.segment(text);
-        RuleRunResult result = ruleEngine.runRules(text, ContractType.FREELANCE, segments);
+        RuleRunResult result = ruleEngine.runRules(text, ContractType.FREELANCER, segments);
 
         assertThat(result.getCandidates()).isNotEmpty();
         assertThat(result.getTotalTriggers()).isGreaterThan(0);
@@ -96,10 +96,10 @@ class RuleEngineTest {
     void testSelectTopCandidates() {
         String text = "제1조 테스트\n제2조 테스트\n제3조 테스트";
         List<ClauseCandidate> segments = segmenter.segment(text);
-        RuleRunResult result = ruleEngine.runRules(text, ContractType.FREELANCE, segments);
+        RuleRunResult result = ruleEngine.runRules(text, ContractType.FREELANCER, segments);
 
         List<ClauseCandidate> topCandidates = ruleEngine.selectTopCandidates(
-                result.getCandidates(), 10, ContractType.FREELANCE);
+                result.getCandidates(), 10, ContractType.FREELANCER);
 
         assertThat(topCandidates.size()).isLessThanOrEqualTo(10);
     }
