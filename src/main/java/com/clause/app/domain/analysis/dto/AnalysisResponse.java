@@ -1,6 +1,7 @@
 package com.clause.app.domain.analysis.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -38,11 +39,15 @@ public class AnalysisResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class AnalysisItem {
+        @JsonProperty("clause_id")
         private String clauseId;
         private String title;
         private String label; // WARNING, CHECK, OK
+        @JsonProperty("risk_reason")
         private String riskReason;
+        @JsonProperty("what_to_confirm")
         private List<String> whatToConfirm;
+        @JsonProperty("soft_suggestion")
         private List<String> softSuggestion;
         private List<String> triggers;
     }

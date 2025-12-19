@@ -6,6 +6,7 @@ import com.clause.app.domain.analysis.dto.AnalysisRequest;
 import com.clause.app.domain.analysis.dto.AnalysisResponse;
 import com.clause.app.domain.analysis.entity.AnalysisResult;
 import com.clause.app.domain.analysis.service.AnalysisService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -101,7 +102,10 @@ public class AnalysisController {
 
             if (result.getItemsJson() != null) {
                 JsonNode itemsNode = objectMapper.readTree(result.getItemsJson());
-                List<AnalysisResponse.AnalysisItem> items = objectMapper.convertValue(itemsNode, List.class);
+                List<AnalysisResponse.AnalysisItem> items = objectMapper.convertValue(
+                        itemsNode, 
+                        new TypeReference<List<AnalysisResponse.AnalysisItem>>() {}
+                );
                 builder.items(items);
             }
 

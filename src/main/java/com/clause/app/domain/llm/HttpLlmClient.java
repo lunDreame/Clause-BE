@@ -53,7 +53,7 @@ public class HttpLlmClient implements LlmClient {
         }
 
         this.webClient = webClientBuilder
-                .baseUrl(baseUrl != null && !baseUrl.isBlank() ? baseUrl : "http://localhost")
+                .baseUrl(baseUrl != null && !baseUrl.isBlank() ? baseUrl : "https://api.openai.com")
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + (apiKey != null ? apiKey : ""))
                 .build();
